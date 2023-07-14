@@ -1,0 +1,6 @@
+#+title: Readme
+* Personal monorepo
+* Contents
+** TODO =time/= an implementation of POSIX =time= with support for french revolutionary time
+** TODO =sim/= worldgen experiments
+** TODO =autodiff/= an automatic differentiation library in haskell
