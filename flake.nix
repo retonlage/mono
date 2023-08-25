@@ -29,7 +29,14 @@
 
               # haskell
               haskellPackages.cabal-install
-              (haskell-language-server.override { supportedGhcVersions = [ "945" ]; })
+              ghc
+              haskell-language-server
+
+              # we can't use a flake-local agda installation because
+              # of a bug in the way agda interacts with agda-mode in emacs
+              # agda
+              agda
+              idris
             ];
           };
         }
