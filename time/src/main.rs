@@ -323,27 +323,12 @@ fn interpret_format_string(format_string: &str, datetime: SystemTime, utc_offset
 }
 
 fn main() {
-    let mut year_length = 0;
-    let mut last_year = 0;
-    for days in  1..1000000 {
-        let year = days_to_years(days);
-        year_length += 1;
-        if year != last_year {
-            println!("{}: {}, {}", last_year, year_length, days);
-            year_length = 0;
-            last_year = year;
-            days_to_years(days);
-        };
-    };
+    let args = Args::parse();
+    let format = if !args.iso { args.format } else { "%Y-%m-%dT%H:%M:%S%z".to_string() };
+    let sys_time = SystemTime::now();
+    let out_string = interpret_format_string(&format, sys_time, args.timezone);
+    println!("{}", out_string);
 }
-
-// fn main() {
-//      let args = Args::parse();
-//      let format = if !args.iso { args.format } else { "%Y-%m-%dT%H:%M:%S%z".to_string() };
-//      let sys_time = SystemTime::now();
-//      let out_string = interpret_format_string(&format, sys_time, args.timezone);
-//      println!("{}", out_string);
-//  }
 
 #[test]
 fn test_days_since_epoch_to_years() {
