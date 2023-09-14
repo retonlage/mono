@@ -7,9 +7,10 @@
     dream2nix.inputs.nixpkgs.follows = "nixpkgs";
     rust-overlay.url = "github:oxalica/rust-overlay";
     utils.url = "github:numtide/flake-utils";
+    lean4.url = "github:leanprover/lean4/v4.0.0-rc4";
   };
 
-  outputs = {nixpkgs, dream2nix, rust-overlay, utils, ...}:
+  outputs = {nixpkgs, dream2nix, rust-overlay, utils, lean4, ...}:
     utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -30,6 +31,12 @@
               # haskell
               haskellPackages.cabal-install
               (haskell-language-server.override { supportedGhcVersions = [ "945" ]; })
+
+              # provers
+              (agda.withPackages [
+                pkgs.agdaPackages.standard-library
+              ])
+              (lean4.defaultPackage.${system})
             ];
           };
         }
