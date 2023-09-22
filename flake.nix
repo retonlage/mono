@@ -37,6 +37,7 @@
                 pkgs.agdaPackages.standard-library
               ])
               (lean4.defaultPackage.${system})
+              z3
             ];
           };
         }
