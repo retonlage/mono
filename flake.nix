@@ -32,7 +32,7 @@
               haskellPackages.cabal-install
               (haskell-language-server.override { supportedGhcVersions = [ "945" ]; })
 
-              # provers
+              # i'm prooooooooooving
               (agda.withPackages [
                 pkgs.agdaPackages.standard-library
               ])

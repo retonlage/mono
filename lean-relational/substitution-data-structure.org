@@ -1,0 +1,42 @@
+#+title: Substitution Data Structure
+Thinking about which data structure to use for substitution structures in relational.
+* Operations
+**  Unify
+*** Follow (repeated search)
+*** Add binding (append)
+**  Introduce (modify)
+The var we want to introduce can be referred to from multiple places. This makes some kind of in-place update preferable.
+In lean this is only possible if we store the entire thing as a table.
+* Basic structures
+** HAMT
+God i wish. not possible in lean
+** Table
+#+begin_src lean4
+def Term := Nat
+def Generation := Nat
+
+structure Substitution where
+  var_mapping : List ((Term × Generation) × List Term)
+  pair_mapping : List ((Term × Generation) × (Term × Term))
+
+  does_not_contain_cycles
+#+end_src
+
+Explicit representation. Would allow cycles so we need a manual proof of termination for functions.
+I would embed most of this proof in the structure itself. This is definitely possible, but i don't currently know how to do it.
+Problems:
+- We would have to manually provide a proof of there not being any cycles in the graph.
+  - escape hatch??
+
+** Shallow embedding
+#+begin_src lean4
+inductive Term where
+  | Atom : TermID → (List (Option Term)) → Term
+  | Pair : (Term × Term) → Term
+
+def Substitution := List Term
+#+end_src
+since the varpointers do not have cycles this would be allowed.
+Problems:
+- Different representation from the clause structure. the clause structure does have cycles, so we have to use the table representation for those.
+- Updates :: When we update the structure (when adding a binding or introducing), it might be referred to in multiple places. This means we would want to do the update in-place. I don't think this is possible with the shallow implicit approach.
