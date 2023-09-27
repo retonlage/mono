@@ -1,96 +1,26 @@
-inductive Vec (α : Type u) : Nat → Type u
-  | nil  : Vec α 0
-  | cons : α → Vec α n → Vec α (n + 1)
-  deriving Repr
+def List.zipWithState {α β γ δ: Type} (f : α → β → γ → α × δ) : α → List β → List γ → List δ
+| _, nil, _ => nil
+| _, _, nil => nil
+| state, (cons x xs), (cons y ys) => let (new_state, new_z) := f state x y
+                                     let final_zs := zipWithState f new_state xs ys
+                                     cons new_z final_zs
 
-namespace Vec
+theorem zipWithState_same_length : ∀ {α β γ δ: Type} (f : α → β → γ → α × δ) (state : α) (xs : List β) (ys : List γ), xs.length = ys.length → (List.zipWithState f state xs ys).length = xs.length := by
+  intro α β γ δ f state xs ys
+  induction xs generalizing ys
+  case nil => intro h; simp [List.zipWithState]
+  case cons x xs ih => intro h
+                       cases ys with
+                       | nil => rw [h]; simp [List.zipWithState]
+                       | cons y ys => simp [List.zipWithState]
+                                      rw [← List.length_cons x xs, ← List.length_cons y ys]
+                                      simp [List.zipWithState]
+                                      exact ih (Nat.succ.inj h)
 
-def concat (xs : Vec α n) (ys : Vec α m) : Vec α (m + n) :=
-  match n, m, xs, ys with
-  | 0, _, nil, ys => ys
-  | (Nat.succ _), _, cons x xs, ys => cons x (concat xs ys)
-
-theorem vec_len_n_plus_1_comm : Vec α (1 + n) = Vec α (n + 1) := by
-  rw [Nat.add_comm]
-
-def snoc (xs : Vec α n) (x : α) : Vec α (n + 1) :=
-  vec_len_n_plus_1_comm ▸ (concat xs (cons x nil))
-
-def vector_is_not_nil (vec : Vec α n) : Prop :=
-  match vec with
-  | nil => False
-  | cons _ _ => True
-
-def head_option : Vec α n -> Option α
-| nil => none
-| cons x _ => some x
-
-def head : Vec α (n + 1) → α
-| cons x _ => x
-
-def last : Vec α (n + 1) → α
-| cons x xs => match xs with
-               | nil => x
-               | cons y ys => last (cons y ys)
-
-def body : Vec α (n + 1) → (Vec α n)
-| cons x xs => match xs with
-               | nil => nil
-               | cons y ys => cons x (body (cons y ys))
-
-def reverse : Vec α n → Vec α n
-| nil => nil
-| cons x xs => snoc (reverse xs) x
-
-def zipWith {n : Nat} (f : α → β → γ) : (Vec α n) -> (Vec β n) -> (Vec γ n)
-  | nil, nil => nil
-  | (cons x xs), (cons y ys) => (cons (f x y) (zipWith f xs ys))
-
-def map (f : α → β) : (Vec α n) → (Vec β n)
-| nil => nil
-| (cons x xs) => (cons (f x) (map f xs))
-
-def foldr {n : Nat} (f : α → β → β) (state : β) : (Vec α n) → β
-| nil => state
-| cons x xs =>  (f x (foldr f state xs))
-
-def zipFold {n : Nat} (f : α → β → γ → γ) (state : γ) : (Vec α n) → (Vec β n) → γ
-| nil, nil => state
-| (cons x xs), (cons y ys) => (f x y (zipFold f state xs ys))
-
--- TODO i am not greek use actual names
-def zipWithState (f : α → β → γ → δ × γ) (state : γ) : (Vec α n) → (Vec β n) → (Vec δ n)
-| nil, nil => nil
-| (cons x xs), (cons y ys) => let (z, new_state) := (f x y state);
-                              (cons z (zipWithState f new_state xs ys))
-
-mutual
-  def take {n_is_lt_orig_len : n ≤ orig_len} (n : Nat) (vec : Vec α orig_len) : (Vec α n) :=
-  match n with
-  | 0 => nil
-  | n + 1 => take_cons ⟨n+1, by ⟩ vec
-
-  def take_cons : {a : Nat // a ≥ 1} → (Vec α (len + 1)) → (Vec α n)
-  | n + 1, cons x xs => cons x (take n xs)
-end
-
-def all (vec : Vec α n) (f : α → Bool) : Bool :=
-    match vec with
-    | nil => true
-    | cons x xs => f x && all xs f
-
-def replicate (val : α) (n : Nat) : Vec α n:=
-  match n with
-  | 0 => nil
-  | n + 1 => cons val (Vec.replicate val n)
-
-def concat {n m : Nat} (xs : Vec α n) (ys : Vec α m) : Vec α (m + n) :=
-  match n, m, xs, ys with
-  | 0, _, nil, ys => ys
-  | (Nat.succ _), _, cons x xs, ys => cons x (concat xs ys)
-
-end Vec
-open Vec
+theorem Nat.le_zero_iff : n ≤ 0 ↔ n = 0 := by
+  cases n with
+  | zero => simp
+  | succ n => simp
 
 inductive Bit where
   | zero
@@ -103,28 +33,23 @@ inductive Decimal where
 inductive ComparisonResult
   | greaterThan | lesserThan | equal | unordered
 
-def BitField : (Nat → Type) := Vec Bit
+structure BitField (len : Nat): Type where
+  repr : List Bit
+  repr_has_len : len = repr.length
 
 namespace BitField
 
--- TODO: rewrite as proper equality theorem
-theorem concatted_vec_is_bitfield (vec : Vec Bit (orig_len - 1 + (0 + 1))) {gt_zero_len : 1 ≤ orig_len}: BitField orig_len := by
-  simp at vec;
-  rw [Nat.sub_add_cancel] at vec;
-  exact vec;
-  exact gt_zero_len
-
 def allOnes (w : Nat) : BitField w :=
-  Vec.replicate Bit.one w
+  ⟨List.replicate w Bit.one, by simp⟩
 
 def isAllOnes (w : Nat) (vec : BitField w) : Bool :=
-  vec.all (λ x => x == Bit.one)
+  vec.repr.all (λ x => x == Bit.one)
 
 def allZeroes (w : Nat) : BitField w :=
-  Vec.replicate Bit.zero w
+  ⟨List.replicate w Bit.zero, by simp⟩
 
 def isAllZeroes (w : Nat) (vec : BitField w) : Bool :=
-  vec.all (λ x => x == Bit.zero)
+  vec.repr.all (λ x => x == Bit.zero)
 
 def saturating_add : (BitField n) → (BitField n) → (BitField n)
 | a, b => let adder := (λ x y carry => match x, y, carry with
@@ -136,7 +61,8 @@ def saturating_add : (BitField n) → (BitField n) → (BitField n)
                         | Bit.one , Bit.zero, Bit.one  => (Bit.zero, Bit.one)
                         | Bit.one , Bit.one , Bit.zero => (Bit.zero, Bit.one)
                         | Bit.one , Bit.one , Bit.one  => (Bit.one , Bit.one));
-          reverse (Vec.zipWithState adder Bit.zero (reverse a) (reverse b))
+          ⟨(List.zipWithState adder Bit.zero (a.repr.reverse) (b.repr.reverse)).reverse,
+            by simp [repr_has_len]⟩
 
 def saturating_subtract : (BitField n) → (BitField n) → (BitField n)
 | a, b => let subtractor := (λ x y carry => match x, y, carry with
@@ -148,7 +74,9 @@ def saturating_subtract : (BitField n) → (BitField n) → (BitField n)
                         | Bit.one , Bit.zero, Bit.one  => (Bit.zero, Bit.zero)
                         | Bit.one , Bit.one , Bit.zero => (Bit.zero, Bit.zero)
                         | Bit.one , Bit.one , Bit.one  => (Bit.zero, Bit.one));
-          reverse (Vec.zipWithState subtractor Bit.zero (reverse a) (reverse b))
+          List.reverse (Vec.zipWithState subtractor Bit.zero (reverse a) (reverse b))
+
+×
 
 theorem tt (n_gt_0: 1 ≤ n) : BitField (n - 1 + 1) = BitField n := by
   rw [Nat.sub_add_cancel]
