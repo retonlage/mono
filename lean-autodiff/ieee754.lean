@@ -1,3 +1,4 @@
+-- TODO: i am not greek use actual type names
 def List.zipWithState {α β γ δ: Type} (f : α → β → γ → α × δ) : α → List β → List γ → List δ
 | _, nil, _ => nil
 | _, _, nil => nil
@@ -7,15 +8,13 @@ def List.zipWithState {α β γ δ: Type} (f : α → β → γ → α × δ) : 
 
 theorem zipWithState_same_length : ∀ {α β γ δ: Type} (f : α → β → γ → α × δ) (state : α) (xs : List β) (ys : List γ), xs.length = ys.length → (List.zipWithState f state xs ys).length = xs.length := by
   intro α β γ δ f state xs ys
-  induction xs generalizing ys
+  induction xs
   case nil => intro h; simp [List.zipWithState]
-  case cons x xs ih => intro h
-                       cases ys with
-                       | nil => rw [h]; simp [List.zipWithState]
-                       | cons y ys => simp [List.zipWithState]
-                                      rw [← List.length_cons x xs, ← List.length_cons y ys]
-                                      simp [List.zipWithState]
-                                      exact ih (Nat.succ.inj h)
+  case cons x xss ihx => intro xlen_eq_ylen
+                         simp [List.zipWithState]
+
+
+
 
 theorem Nat.le_zero_iff : n ≤ 0 ↔ n = 0 := by
   cases n with
