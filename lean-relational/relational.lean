@@ -1,26 +1,38 @@
 import Std.Data.RBMap
 
+def List.body : ∀ (xs : List α), xs ≠ [] → List α
+| [], h => absurd rfl h
+| [_], _ => []
+| (x :: b :: xs), _ =>
+        List.cons x (List.body (b::xs) (λ h => List.noConfusion h))
+
 def Std.RBMap.change! [Inhabited β] (rb_map : Std.RBMap α β cmp) (key : α) (f : β → β) : Std.RBMap α β cmp :=
 let old_val := rb_map.find! key;
 let new_val := f old_val;
 rb_map.insert key new_val
 
 def VarID := Nat
-  deriving BEq, Ord, Inhabited
+  deriving BEq, Ord, Inhabited, Repr
 
 def Symbol := Nat
-  deriving BEq, Ord, Inhabited
+  deriving BEq, Ord, Inhabited, Repr
 
 def Generation := Nat
-  deriving BEq, Ord, Inhabited
+  deriving BEq, Ord, Inhabited, Repr
 
 instance : HAdd Generation Generation Generation where
   hAdd := Nat.add
 
 def Var := VarID × Generation
-  deriving BEq
+  deriving BEq, Repr
 
 instance : OfNat Generation n where
+  ofNat := n
+
+instance : OfNat Symbol n where
+  ofNat := n
+
+instance : OfNat VarID n where
   ofNat := n
 
 instance : Ord Var where
@@ -32,7 +44,10 @@ instance : Ord Var where
      | Ordering.gt => Ordering.gt
 
 def ClauseID := Nat
-  deriving BEq, Ord
+  deriving BEq, Ord, Repr
+
+instance : OfNat ClauseID n where
+  ofNat := n
 
 inductive ClauseTerm where
   | Var (var : VarID)
@@ -50,9 +65,10 @@ inductive TermValue where
   | Var (term : Var)
   | Symbol (id : Symbol)
   | Pair (subterm₁ subterm₂ : TermValue)
-  deriving BEq
+  deriving BEq, Repr
 
 def Bindings := Std.RBMap Var TermValue Ord.compare
+  deriving Repr
 namespace Bindings
 
 def get : Bindings → Var → Option TermValue
@@ -89,6 +105,8 @@ end Bindings
 structure Head where
   counters : Std.RBMap VarID Generation Ord.compare
   clause : ClauseID
+  deriving Repr
+
 namespace Head
 
 def var_equip_generation (head : Head) (var : VarID) : Var :=
@@ -107,6 +125,12 @@ end Head
 
 def LogicGraph := Std.RBMap ClauseID Clause Ord.compare
 namespace LogicGraph
+
+structure Substitution where
+  bindings : Bindings
+  heads : List Head
+
+  heads_nonempty : heads ≠ []
 
 open Clause
 
@@ -128,4 +152,62 @@ match clause with
                          else ([(new_bindings, other_heads)], none)
   | none => ([], none)
 
+def Select := LogicGraph → (substs : List Substitution) → substs ≠ [] → (Bindings × Head × List Head)
+
+def select_depth_first : Select :=
+  λ _ substs substs_nonempty => let selected_subst := substs.head substs_nonempty;
+                                (selected_subst.bindings,
+                                 selected_subst.heads.head selected_subst.heads_nonempty,
+                                 selected_subst.heads.tailD [])
+
+def select_breadth_first : Select :=
+  λ _ substs substs_nonempty => let selected_subst := substs.getLast substs_nonempty;
+                                (selected_subst.bindings,
+                                 selected_subst.heads.getLast selected_subst.heads_nonempty,
+                                 selected_subst.heads.body selected_subst.heads_nonempty)
+
+
+partial def eval_to_next (graph : LogicGraph)
+                         (substs : List (Bindings × List Head))
+                         (substs_nonempty : substs ≠ [])
+                         (selectF : Select)
+    : Option (Bindings × List (Bindings × List Head)) :=
+let (bindings, heads) := selectF graph substs substs_nonempty;
+let (new_substitutions, results_option) := eval graph bindings heads;
+if let some(results) := results_option; then
+  some ()
+else
+  EvalResult.More new_substitutions bindings
+
+partial def eval_all (graph : LogicGraph)
+                     (selectF : Select)
+                     (entry_point : ClauseID)
+                     (entry_point_is_in_graph : entry_point ∈ graph)
+                     : EvalResult :=
+ let entry_head : Head := { counters := Std.RBMap.empty, clause := entry_point };
+ let entry_substs : List (Bindings × List Head) := [(Std.RBMap.empty, [])];
+
+
 end LogicGraph
+
+
+
+def Std.RBMap.fromList [BEq α] [Ord α] (l : List (α × β)) : Std.RBMap α β Ord.compare :=
+  l.foldl (λ map (key, value) => map.insert key value) Std.RBMap.empty
+
+def test_logic_graph_unif : LogicGraph :=
+    Std.RBMap.fromList [(0, Clause.Unification
+                              (ClauseTerm.Var 1)
+                              (ClauseTerm.Symbol 1))]
+
+def test_logic_graph_unif_under_intro : LogicGraph :=
+    Std.RBMap.fromList [(0, Clause.Introduction 1 1),
+                        (1, Clause.Unification
+                              (ClauseTerm.Var 1)
+                              (ClauseTerm.Symbol 1))]
+
+def test_bindings : Bindings := Std.RBMap.empty
+
+def test_head : Head := { counters := Std.RBMap.empty, clause := 0 }
+
+#eval LogicGraph.eval test_logic_graph_unif_under_intro test_bindings test_head []
