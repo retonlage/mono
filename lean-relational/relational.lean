@@ -7,7 +7,6 @@ def List.body : ∀ (xs : List α), xs ≠ [] → List α
 | (x :: b :: xs), _ =>
         List.cons x (List.body (b::xs) (λ h => List.noConfusion h))
 
-def Std.RBMap.change! [Inhabited β] (rb_map : Std.RBMap α β cmp) (key : α) (f : β → β) : Std.RBMap α β cmp :=
 def Std.RBMap.change! [Inhabited β] (rb_map : Std.RBMap α β comp) (key : α) (f : β → β) : Std.RBMap α β comp :=
 let old_val := rb_map.find! key;
 let new_val := f old_val;
@@ -154,20 +153,36 @@ match clause with
                          else ([(new_bindings, other_heads)], none)
   | none => ([], none)
 
-def Select := LogicGraph → (substs : List Substitution) → substs ≠ [] → (Bindings × Head × List Head)
+def Select := LogicGraph → (substs : List Substitution) → substs ≠ [] → Σ selected_subst : Fin substs.length, Fin (substs.get selected_subst).heads.length
+
+theorem length_pos_of_nonempty {α : Type _} (list : List α) (h : list ≠ []) : 0 < list.length := by
+  cases list with
+  | nil  => contradiction
+  | cons => exact Nat.zero_lt_succ _
 
 def select_depth_first : Select :=
-  λ _ substs substs_nonempty => let selected_subst := substs.head substs_nonempty;
-                                (selected_subst.bindings,
-                                 selected_subst.heads.head selected_subst.heads_nonempty,
-                                 selected_subst.heads.tailD [])
+  λ _ substs substs_nonempty => let len_substs_gt_z := length_pos_of_nonempty substs substs_nonempty
+                                ⟨⟨0, len_substs_gt_z⟩,
+                                 ⟨0, let first_subst := substs.get ⟨0, len_substs_gt_z⟩
+                                     length_pos_of_nonempty first_subst.heads first_subst.heads_nonempty⟩⟩
+
+theorem last_index_less_than_length {α : Type _} (list : List α) (h : list ≠ []) :
+            List.length list - 1 < List.length list := by
+  cases list with
+  | nil => contradiction
+  | cons head tail => let list_len_ne_z : (List.cons head tail).length ≠ 0 := by
+                        intro h
+                        injection h
+                      exact Nat.pred_lt list_len_ne_z
 
 def select_breadth_first : Select :=
-  λ _ substs substs_nonempty => let selected_subst := substs.getLast substs_nonempty;
-                                (selected_subst.bindings,
-                                 selected_subst.heads.getLast selected_subst.heads_nonempty,
-                                 selected_subst.heads.body selected_subst.heads_nonempty)
-
+  λ _ substs substs_nonempty => let last_subst_idx := substs.length - 1
+                                let last_index_lt_length := last_index_less_than_length substs substs_nonempty
+                                let last_subst := substs.get ⟨last_subst_idx, last_index_lt_length⟩
+                                let last_head_idx := last_subst.heads.length - 1
+                                let last_head_index_lt_length := last_index_less_than_length last_subst.heads last_subst.heads_nonempty
+                                ⟨⟨last_subst_idx, last_index_lt_length⟩,
+                                 ⟨last_head_idx, last_head_index_lt_length⟩⟩
 
 partial def eval_to_next (graph : LogicGraph)
                          (substs : List (Bindings × List Head))
