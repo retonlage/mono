@@ -1,2 +1,4 @@
 /.direnv/
 /accel-lean/build/
+/lean-relational/lean-toolchain
+/lean-relational/lakefile.olean

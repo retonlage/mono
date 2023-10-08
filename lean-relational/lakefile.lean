@@ -1,8 +1,8 @@
 import Lake
 open Lake DSL
 
-require std from git
-  "https://github.com/leanprover/std4/" @ "28459f7"
+require mathlib from git
+  "https://github.com/leanprover-community/mathlib4" @ "81fa8d9"
 
 package «relational» {
   -- add package configuration options here

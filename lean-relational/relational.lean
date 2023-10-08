@@ -1,4 +1,5 @@
 import Std.Data.RBMap
+import Mathlib.Data.List.Basic
 
 def List.body : ∀ (xs : List α), xs ≠ [] → List α
 | [], h => absurd rfl h
@@ -7,6 +8,7 @@ def List.body : ∀ (xs : List α), xs ≠ [] → List α
         List.cons x (List.body (b::xs) (λ h => List.noConfusion h))
 
 def Std.RBMap.change! [Inhabited β] (rb_map : Std.RBMap α β cmp) (key : α) (f : β → β) : Std.RBMap α β cmp :=
+def Std.RBMap.change! [Inhabited β] (rb_map : Std.RBMap α β comp) (key : α) (f : β → β) : Std.RBMap α β comp :=
 let old_val := rb_map.find! key;
 let new_val := f old_val;
 rb_map.insert key new_val
