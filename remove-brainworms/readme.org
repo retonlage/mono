@@ -1,0 +1,19 @@
+#+title: Readme
+
+A Firefox extension for removing the worst infohazard vectors from twitter.
+
+In particular this extension can block:
+ * The algorithmic feed
+ * Recommendation in the right sidebar
+ * Irrelevant stuff in the left sidebar
+ * Metrics counts on posts
+ * Notification other than replies (doesn't filter the notification count pt)
+
+* todo [0/4]
+** TODO disable the notification icon for unwanted notifications
+this probably requires looking into the actual dynamic state to see what kind of notifications we are dealing with from outside the notifications tab
+** TODO configuration
+** TODO gpt for detecting engagement bait
+killer app that i am too lazy to implement
+** TODO other interface languages
+interface string are hardcoded in the filters. hooking into twitter localization would be much better.
