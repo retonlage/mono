@@ -1,15 +1,15 @@
 #+title: Readme
 
-A Firefox extension for removing the worst infohazard vectors from twitter.
+a firefox extension for removing the worst infohazard vectors from twitter.
 
-In particular this extension can block:
- * The algorithmic feed
- * Recommendation in the right sidebar
- * Irrelevant stuff in the left sidebar
- * Metrics counts on posts
- * Notification other than replies (doesn't filter the notification count pt)
+in particular this extension can block:
+ * the algorithmic feed
+ * recommendation in the right sidebar
+ * irrelevant stuff in the left sidebar
+ * metrics counts on posts
+ * notification other than replies (doesn't filter the notification count pt)
 
-* todo [0/4]
+* tasks [0/4]
 ** TODO disable the notification icon for unwanted notifications
 this probably requires looking into the actual dynamic state to see what kind of notifications we are dealing with from outside the notifications tab
 ** TODO configuration

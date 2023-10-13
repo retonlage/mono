@@ -41,7 +41,7 @@ let metricsFilter = (metricName) => (
                   ? nthParent(element, 4).childNodes[1]
                   : null ))
 
-let forYouFilter = spanParentFilter("For you", 4)
+let forYouFilter = spanParentFilter("For you", 10)
 let subscribeSidebarFilter = spanParentFilter("Subscribe to Premium", 3)
 let whoToFollowFilter = spanParentFilter("Who to follow", 5)
 let trendsFilter = spanParentFilter((text) => (text.endsWith(" trends")), 10, spanClass=["css-901oao"])
