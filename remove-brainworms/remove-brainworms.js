@@ -99,8 +99,6 @@ let flatten = (object) => Object.fromEntries(flattenObject(object))
 
 let filterNames = flatten(filters)
 
-console.log(filterNames)
-
 let hideElement = (element) => {
   element.style.display = "none"
 }
@@ -109,7 +107,6 @@ let filterElement = (element) => {
   Object.entries(filterNames).forEach(([filterName, filter]) => {
     let filteredElement = filter(element)
     if (filteredElement) {
-      console.log("Filtering element", filteredElement, "because of ", filterName, "on ", element)
       hideElement(filteredElement)
     }
   })

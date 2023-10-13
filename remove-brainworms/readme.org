@@ -15,5 +15,6 @@ this probably requires looking into the actual dynamic state to see what kind of
 ** TODO configuration
 ** TODO gpt for detecting engagement bait
 killer app that i am too lazy to implement
+*** TODO key management
 ** TODO other interface languages
 interface string are hardcoded in the filters. hooking into twitter localization would be much better.
