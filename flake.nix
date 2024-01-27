@@ -38,6 +38,8 @@
               ])
               (lean4.defaultPackage.${system})
               z3
+
+              racket
             ];
           };
         }
