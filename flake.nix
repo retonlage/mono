@@ -5,20 +5,19 @@
     nixpkgs.url = "github:NixOS/nixpkgs/23.05";
     dream2nix.url = "github:nix-community/dream2nix";
     dream2nix.inputs.nixpkgs.follows = "nixpkgs";
-    rust-overlay.url = "github:oxalica/rust-overlay";
+    fenix.url = "github:nix-community/fenix/monthly";
     utils.url = "github:numtide/flake-utils";
     lean4.url = "github:leanprover/lean4/v4.2.0-rc1";
   };
 
-  outputs = {nixpkgs, dream2nix, rust-overlay, utils, lean4, ...}:
+  outputs = {nixpkgs, dream2nix, fenix, utils, lean4, ...}:
     utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        pkgs = import nixpkgs {
+          inherit system;
+        };
       in
         {
-          nixpkgs.overlays = [
-            rust-overlay.overlay
-          ];
           packages.time = dream2nix;
           packages.autodiff = pkgs.haskellPackages.developPackage {
             root = ./autodiff;
@@ -34,7 +33,10 @@
           devShells.default = pkgs.mkShell {
             buildInputs = with pkgs; [
               # rust
-              cargo rustc rust-analyzer
+              fenix.packages.${system}.rust-analyzer
+              (fenix.packages.${system}.default.withComponents [
+                "cargo" "clippy" "rustc" "rustfmt"
+              ])
 
               # haskell
               haskellPackages.cabal-install
@@ -44,11 +46,10 @@
               (agda.withPackages [
                 pkgs.agdaPackages.standard-library
               ])
-              (lean4.defaultPackage.${system})
+              # (lean4.defaultPackage.${system})
               z3
 
               racket
-
               (python3.withPackages(pp: with pp; [requests beautifulsoup4]))
             ];
           };

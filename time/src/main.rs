@@ -1,9 +1,11 @@
-use std::time::{SystemTime, Duration};
+use std::{time::{SystemTime, Duration}, print, println};
+
+mod raw_tz;
 
 struct Args {
-    format: String,
+    format: Option<String>,
     iso: bool,
-    timezone: i64,
+    timezone: Option<i64>,
 }
 
 impl Args {
@@ -29,9 +31,9 @@ impl Args {
                     .help("date format string"))
             .get_matches();
         Args {
-            format: parser.get_one::<String>("date_format_string").unwrap().to_string(),
+            format: parser.get_one::<String>("date_format_string").map(|s| { s.to_string() }),
             iso: parser.contains_id("iso"),
-            timezone: *parser.get_one("timezone").unwrap(),
+            timezone: parser.get_one::<i64>("timezone").copied(),
         }
     }
 }
@@ -60,11 +62,11 @@ const DECADE_WEEKDAYS: &'static [(&str, &str); NUM_DECADE_WEEKDAYS] = &[
         ("08", "Octidi"),
         ("09", "Nonidi"),
         ("10", "Decadi")];
+
 const DECADE_WEEK_SYSTEM: (&'static [(&str, &str)], usize) = (DECADE_WEEKDAYS, NUM_DECADE_WEEKDAYS);
 
 fn weekday<'a>(duration_since_epoch: Duration, system: (&'a[(&'a str, &'a str)], usize), use_long: bool) -> &str {
-    let days = system.0;
-    let num_days = system.1;
+    let (days, num_days) = system;
     let days_since_epoch = duration_since_epoch.as_secs() / 86400;
     let weekday = days_since_epoch % num_days as u64;
     if use_long {
@@ -90,19 +92,21 @@ fn decade_weekday_from_duration(duration_since_epoch: Duration) -> &'static str 
     weekday(duration_since_epoch, DECADE_WEEK_SYSTEM, true)
 }
 
-fn days_to_years(days_since_epoch: u64) -> u64 {
+fn year_and_date(duration_since_epoch: Duration) -> (u64, u64) {
+    let days_since_epoch = duration_since_epoch.as_secs() / 86400;
     let four_year_cycles = days_since_epoch / (365 * 4 + 1);
     let hundred_year_cycles = days_since_epoch / (365 * 100 + 24);
     let four_hundred_year_cycles = days_since_epoch / (365 * 400 + 97);
     let days = days_since_epoch - four_year_cycles + hundred_year_cycles - four_hundred_year_cycles;
-    println!("days: {}, four_year_cycles: {}, hundred_year_cycles: {}, four_hundred_year_cycles: {}", days, four_year_cycles, hundred_year_cycles, four_hundred_year_cycles);
-    days / 365
+    (days / 365, days % 365)
 }
 
 fn year(duration_since_unix_epoch: Duration, unix_epoch_repr: u64) -> u64 {
-    let days_since_unix_epoch = duration_since_unix_epoch.as_secs() / 86400;
-    let naive_years_since_unix_epoch = days_since_unix_epoch / 365;
-    unix_epoch_repr
+    year_and_date(duration_since_unix_epoch).0 + unix_epoch_repr
+}
+
+fn day_in_year(duration_since_epoch: Duration) -> u64 {
+    year_and_date(duration_since_epoch).1
 }
 
 fn gregorian_year(duration_since_unix_epoch: Duration) -> u64 {
@@ -113,20 +117,15 @@ fn french_year(duration_since_unix_epoch: Duration) -> u64 {
     year(duration_since_unix_epoch, 178)
 }
 
-// works for both decimal and christian calendar
+// works for both decimal and gregorian calendar
 fn is_leap_year(year: u64) -> bool {
     year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
 }
 
-fn raw_day_in_year(duration_since_epoch: Duration) -> u64 {
-    let days_since_epoch = duration_since_epoch.as_secs() / 86400;
-    days_since_epoch % 365
-}
-
 fn decimal_year_date(duration_since_epoch: Duration) -> u64 {
-    let date_in_year = raw_day_in_year(duration_since_epoch);
+    let date_in_year = day_in_year(duration_since_epoch);
     let year = french_year(duration_since_epoch);
-    if is_leap_year(year) && date_in_year > 59 {
+    if is_leap_year(year) {
         date_in_year - 1
     } else {
         date_in_year
@@ -134,13 +133,17 @@ fn decimal_year_date(duration_since_epoch: Duration) -> u64 {
 }
 
 fn gregorian_year_date(duration_since_epoch: Duration) -> u64 {
-    let date_in_year = raw_day_in_year(duration_since_epoch);
+    let date_in_year = day_in_year(duration_since_epoch);
     let year = gregorian_year(duration_since_epoch);
-    if is_leap_year(year - 1) {
+    if is_leap_year(year - 1) && date_in_year > 59 {
         date_in_year - 1
     } else {
         date_in_year
     }
+}
+
+fn gregorian_century(duration_since_epoch: Duration) -> u64 {
+    (gregorian_year(duration_since_epoch) / 100) + 1
 }
 
 const NUM_GREG_MONTHS: usize = 12;
@@ -176,19 +179,21 @@ const DECIMAL_MONTHS: &'static [(&str, u64, &str); NUM_DECIMAL_MONTHS] = &[
     ("San", 360, "Sansculottides")
 ];
 
-fn find_month<'a>(date: u64, system_months: &'a [(&'a str, u64, &'a str)]) -> &'a (&'a str, u64, &'a str) {
-    for month in system_months.iter() {
+fn find_month(date: u64, system_months: &'static [(&'static str, u64, &'static str)]) -> (usize, &'static (&'static str, u64, &'static str)) {
+    let mut last_month: &(&str, u64, &str) = &system_months[0];
+    for (i, month) in system_months.iter().enumerate() {
         let month_offset = &month.1;
-        if date >= *month_offset {
-            return month
+        if date <= *month_offset {
+            return (i-1, last_month)
         }
+        last_month = month;
     }
-    panic!("Invalid date")
+    (system_months.len() - 1, last_month)
 }
 
-fn date_in_month<'a>(date: u64, system_months: &'a [(&'a str, u64, &'a str)]) -> u64 {
-    let month = find_month(date, system_months);
-    date - month.1
+fn date_in_month(date: u64, system_months: &'static [(&'static str, u64, &'static str)]) -> u64 {
+    let (_, month) = find_month(date, system_months);
+    date - month.1 + 1
 }
 
 fn gregorian_date_in_month(duration_since_epoch: Duration) -> u64 {
@@ -197,37 +202,59 @@ fn gregorian_date_in_month(duration_since_epoch: Duration) -> u64 {
 }
 
 fn decimal_date_in_month(duration_since_epoch: Duration) -> u64 {
-    let day_in_year = raw_day_in_year(duration_since_epoch);
+    let day_in_year = day_in_year(duration_since_epoch);
     date_in_month(day_in_year, DECIMAL_MONTHS)
 }
 
-fn month<'a>(date: u64, system_months: &'a [(&'a str, u64, &'a str)], use_long: bool) -> &'a str {
-    let month = find_month(date, system_months);
-    if use_long {
-        month.2
-    } else {
-        month.0
+enum MonthDisplay { Number(usize), Long, Short }
+
+fn month(date: u64, system_months: &'static [(&str, u64, &str)], display_type: MonthDisplay) -> String {
+    let (i, month) = find_month(date, system_months);
+    match display_type {
+        MonthDisplay::Number(index) => (i + index).to_string(),
+        MonthDisplay::Long => month.2.to_string(),
+        MonthDisplay::Short => month.0.to_string(),
     }
 }
 
-fn gregorian_short_month<'a>(duration_since_epoch: Duration) -> &'a str {
+fn gregorian_numeric_month_zero_index(duration_since_epoch: Duration) -> String {
+    let day_in_year = day_in_year(duration_since_epoch);
+    month(day_in_year, GREG_MONTHS, MonthDisplay::Number(0))
+}
+
+fn gregorian_numeric_month_one_index(duration_since_epoch: Duration) -> String {
+    let day_in_year = day_in_year(duration_since_epoch);
+    month(day_in_year, GREG_MONTHS, MonthDisplay::Number(1))
+}
+
+fn gregorian_short_month(duration_since_epoch: Duration) -> String {
     let day_in_year = gregorian_year_date(duration_since_epoch);
-    month(day_in_year, GREG_MONTHS, false)
+    month(day_in_year, GREG_MONTHS, MonthDisplay::Short)
 }
 
-fn gregorian_long_month<'a>(duration_since_epoch: Duration) -> &'a str {
+fn gregorian_long_month(duration_since_epoch: Duration) -> String {
     let day_in_year = gregorian_year_date(duration_since_epoch);
-    month(day_in_year, GREG_MONTHS, true)
+    month(day_in_year, GREG_MONTHS, MonthDisplay::Long)
 }
 
-fn decimal_short_month<'a>(duration_since_epoch: Duration) -> &'a str {
-    let day_in_year = raw_day_in_year(duration_since_epoch);
-    month(day_in_year, DECIMAL_MONTHS, false)
+fn decimal_numeric_month_zero_index(duration_since_epoch: Duration) -> String {
+    let day_in_year = day_in_year(duration_since_epoch);
+    month(day_in_year, DECIMAL_MONTHS, MonthDisplay::Number(0))
 }
 
-fn decimal_long_month<'a>(duration_since_epoch: Duration) -> &'a str {
-    let day_in_year = raw_day_in_year(duration_since_epoch);
-    month(day_in_year, DECIMAL_MONTHS, true)
+fn decimal_numeric_month_one_index(duration_since_epoch: Duration) -> String {
+    let day_in_year = day_in_year(duration_since_epoch);
+    month(day_in_year, DECIMAL_MONTHS, MonthDisplay::Number(1))
+}
+
+fn decimal_short_month(duration_since_epoch: Duration) -> String {
+    let day_in_year = day_in_year(duration_since_epoch);
+    month(day_in_year, DECIMAL_MONTHS, MonthDisplay::Short)
+}
+
+fn decimal_long_month(duration_since_epoch: Duration) -> String {
+    let day_in_year = day_in_year(duration_since_epoch);
+    month(day_in_year, DECIMAL_MONTHS, MonthDisplay::Long)
 }
 
 // time
@@ -244,38 +271,95 @@ fn duodecimal_second(duration_since_epoch: Duration) -> u64 {
     duration_since_epoch.as_secs() % 60
 }
 
+fn as_decimal_secs(duration: Duration) -> u64 {
+    let millis = duration.as_millis();
+    (millis / 864) as u64
+}
+
 fn decimal_hour(duration_since_epoch: Duration) -> u64 {
-    (duration_since_epoch.as_secs() / 3600) % 10
+    let secs = as_decimal_secs(duration_since_epoch);
+    (secs / 10_000) % 10
 }
 
 fn decimal_minute(duration_since_epoch: Duration) -> u64 {
-    (duration_since_epoch.as_secs() / 3600) % 1_000
+    let secs = as_decimal_secs(duration_since_epoch);
+    (secs / 100) % 100
 }
 
 fn decimal_second(duration_since_epoch: Duration) -> u64 {
-    (duration_since_epoch.as_secs() / 3600) % 1_000_000
+    let secs = as_decimal_secs(duration_since_epoch);
+    secs % 100
 }
 
-#[derive(PartialEq)]
-enum NextIs {
-    Format,
-    French,
-    Literal
+fn offset_hours(hours: i64,) -> String {
+    format!("{:+03}", hours)
+}
+
+fn offset_hours_minutes(hours: i64, minutes: i64) -> String {
+    format!("{:+03}:{:02}", hours, minutes)
+}
+
+fn offset_hours_minutes_no_colon(hours: i64, minutes: i64) -> String {
+    format!("{:+03}{:02}", hours, minutes)
+}
+
+fn offset_hours_minutes_seconds(hours: i64, minutes: i64, secs: i64) -> String {
+    format!("{:+03}:{:02}:{:02}", hours, minutes, secs)
+}
+
+fn offset_format(offset: i64, colons: u8) -> String {
+    let secs = offset % 3600;
+    let minutes = (offset % 3600) / 60;
+    let hours = offset / 3600;
+    match colons {
+        0 => offset_hours_minutes_no_colon(hours, minutes),
+        1 => offset_hours_minutes(hours, minutes),
+        2 => offset_hours_minutes_seconds(hours, minutes, secs),
+        3 => {
+            if secs != 0 {
+                offset_hours_minutes_seconds(hours, minutes, secs)
+            } else if minutes != 0 {
+                offset_hours_minutes(hours, minutes)
+            } else {
+                offset_hours(hours)
+            }
+        },
+        _ => "%".to_owned() + &":".repeat(colons as usize) + "z",
+    }
+
+}
+
+fn zeropad(unpadded: u64) -> String {
+    format!("{:02}", unpadded)
 }
 
 fn interpret_format_string(format_string: &str, datetime: SystemTime, utc_offset: i64) -> String {
-    let raw_system_duration = datetime.duration_since(SystemTime::UNIX_EPOCH).expect("Time went backwards");
+    let raw_system_duration = datetime.duration_since(SystemTime::UNIX_EPOCH).expect("Time went backwards.");
     let duration = if utc_offset < 0 {
         raw_system_duration - Duration::from_secs(utc_offset.abs() as u64)
     } else {
         raw_system_duration + Duration::from_secs(utc_offset as u64)
     };
     let mut outstring = String::new();
+    #[derive(PartialEq)]
+    enum NextIs {Format, French, Literal}
+    #[derive(Default)]
+    struct Flags {no_pad: bool, space_pad: bool, zero_pad: bool, plus_future: bool, prefer_upper: bool, prefer_invert_case: bool}
+    let mut flags = Flags::default();
     let mut next_is = NextIs::Literal;
+    let mut colons: u8 = 0;
+    let format_string = if let Some(first) = format_string.chars().next() { // ignore leading +
+        if first == '+' {
+            &format_string[1..]
+        } else { format_string }
+    } else { format_string };
     for chr in format_string.chars() {
         match next_is {
             NextIs::Format => {
                 next_is = NextIs::Literal;
+                if chr != ':' && chr != 'z' {
+                    colons = 0;
+                }
                 match &chr {
                     '%' => outstring.push('%'),
                     'f' => {
@@ -283,30 +367,38 @@ fn interpret_format_string(format_string: &str, datetime: SystemTime, utc_offset
                     },
                     'a' => outstring.push_str(seven_day_weekday_from_duration(duration)),
                     'A' => outstring.push_str(seven_day_long_weekday_from_duration(duration)),
-                    'b' => outstring.push_str(gregorian_short_month(duration)),
-                    'B' => outstring.push_str(gregorian_long_month(duration)),
+                    'b' => outstring.push_str(&gregorian_short_month(duration)),
+                    'B' => outstring.push_str(&gregorian_long_month(duration)),
+                    'C' => outstring.push_str(&gregorian_century(duration).to_string()),
+                    'd' => outstring.push_str(&gregorian_date_in_month(duration).to_string()),
+                    'D' => outstring.push_str(&interpret_format_string("%m/%d/%y", datetime, utc_offset)),
                     'Y' => outstring.push_str(&gregorian_year(duration).to_string()),
                     'y' => outstring.push_str(&gregorian_year(duration).to_string()[2..]),
-                    'd' => outstring.push_str(&gregorian_date_in_month(duration).to_string()),
-                    'H' => outstring.push_str(&duodecimal_hour(duration).to_string()),
-                    'I' => outstring.push_str(&(duodecimal_hour(duration) % 12).to_string()),
-                    'M' => outstring.push_str(&duodecimal_minute(duration).to_string()),
-                    'S' => outstring.push_str(&duodecimal_second(duration).to_string()),
+                    'm' => outstring.push_str(&gregorian_numeric_month_one_index(duration).to_string()),
+                    'H' => outstring.push_str(&zeropad(duodecimal_hour(duration))),
+                    'I' => outstring.push_str(&zeropad(duodecimal_hour(duration) % 12)),
+                    'M' => outstring.push_str(&zeropad(duodecimal_minute(duration))),
+                    'S' => outstring.push_str(&zeropad(duodecimal_second(duration))),
+                    ':' => {colons += 1; next_is = NextIs::Format},
+                    'z' => outstring.push_str(&offset_format(utc_offset, colons)),
+                    'Z' => outstring.push_str(&raw_tz::get_tz_name()),
                     _ => panic!("Unknown format specifier: %{}", chr)
                 }
             },
             NextIs::French => {
+                next_is = NextIs::Literal;
                 match &chr {
                     'A' => outstring.push_str(decade_weekday_from_duration(duration)),
                     'a' => outstring.push_str(decade_number_from_duration(duration)),
-                    'b' => outstring.push_str(decimal_short_month(duration)),
-                    'B' => outstring.push_str(decimal_long_month(duration)),
+                    'b' => outstring.push_str(&decimal_short_month(duration)),
+                    'B' => outstring.push_str(&decimal_long_month(duration)),
                     'Y' => outstring.push_str(&french_year(duration).to_string()),
                     'y' => outstring.push_str(&french_year(duration).to_string()[2..]),
+                    'm' => outstring.push_str(&decimal_numeric_month_one_index(duration).to_string()),
                     'd' => outstring.push_str(&decimal_date_in_month(duration).to_string()),
                     'H' => outstring.push_str(&decimal_hour(duration).to_string()),
-                    'M' => outstring.push_str(&decimal_minute(duration).to_string()),
-                    'S' => outstring.push_str(&decimal_second(duration).to_string()),
+                    'M' => outstring.push_str(&zeropad(decimal_minute(duration))),
+                    'S' => outstring.push_str(&zeropad(decimal_second(duration))),
                     _ => panic!("Unknown format specifier: %f{}", chr)
                 }
             },
@@ -324,32 +416,14 @@ fn interpret_format_string(format_string: &str, datetime: SystemTime, utc_offset
 
 fn main() {
     let args = Args::parse();
-    let format = if !args.iso { args.format } else { "%Y-%m-%dT%H:%M:%S%z".to_string() };
+    let iso_format = "%Y-%m-%dT%H:%M:%S%z".to_string();
+    let format = if args.iso { iso_format } else { args.format.unwrap_or(iso_format) };
     let sys_time = SystemTime::now();
-    let out_string = interpret_format_string(&format, sys_time, args.timezone);
+    let tz = if let Some(args_tz) = args.timezone {
+        args_tz
+    } else {
+        raw_tz::get_tz_offset()
+    };
+    let out_string = interpret_format_string(&format, sys_time, tz);
     println!("{}", out_string);
-}
-
-#[test]
-fn test_days_since_epoch_to_years() {
-    assert_eq!(days_since_epoch_to_years(50), 0);
-    assert_eq!(days_since_epoch_to_years(365), 0);
-    assert_eq!(days_since_epoch_to_years(366), 1);
-    assert_eq!(days_since_epoch_to_years(370), 1);
-    assert_eq!(days_since_epoch_to_years(365 * 5 + 1), 4);
-    assert_eq!(days_since_epoch_to_years(365 * 5 + 2), 5);
-    assert_eq!(days_since_epoch_to_years((365) * 4 + 1) * 25, 99);
-    assert_eq!(days_since_epoch_to_years((365) * 4 + 1) * 25 + 1, 99);
-    assert_eq!(days_since_epoch_to_years((365) * 4 + 1) * 25, 100);
-    assert_eq!(days_since_epoch_to_years((365) * 100 + 96) * 4, 399);
-    assert_eq!(days_since_epoch_to_years((365) * 100 + 96) * 4 + 1, 399);
-    assert_eq!(days_since_epoch_to_years((365) * 100 + 96) * 4 + 2, 400);
-}
-
-#[test]
-fn test_num_leap_years_between() {
-    assert_eq!(num_leap_years_between(1999 * 365, 2001 * 365), 0);
-    assert_eq!(num_leap_years_between(2000 * 365, 2000 * 365), 0);
-    assert_eq!(num_leap_years_between(2000 * 365, 2001 * 365), 0);
-    // assert_eq!(num_leap_years_between(2000 * 365, 2005 * 365), 1);
 }

@@ -94,19 +94,27 @@ def bitcompare : (BitField len) → (BitField len) → ComparisonResult
   | (Vec.cons _ xs), (cons _ ys ) => bitcompare xs ys
 
 end BitField
+
 open BitField
+
+def NonZero := { a : Nat // ( a ≥ 1 )}
 
 inductive Error where
   | invalid_operation
 
-structure IEEEFloat (exponent_len significand_len : { a : Nat // ( a ≥ 1 )}) where
+structure IEEEFloat (exponent_len significand_len : Nat)
+                    (exponent_len_nz : exponent_len ≠ 0)
+                    (significand_len_nz : significand_len ≠ 0) where
   sign : Bit
   exponent : BitField exponent_len
   significand : BitField significand_len
 
+  exponent_len_nz := exponent_len_nz
+  significand_len_nz  := significand_len_nz
+
 namespace IEEEFloat
 
-def asUnsignedBitField : (IEEEFloat exponent_len significand_len) → BitField (significand_len + exponent_len)
+def asUnsignedBitField : (IEEEFloat exponent_len significand_len exp_nz significand_nz) → BitField (significand_len + exponent_len)
 | n => (concat n.exponent n.significand)
 
 def fromUnsignedBitField {significand_len exponent_len : { a : Nat // ( a ≥ 1 )}} : Bit → (BitField (significand_len + exponent_len)) → IEEEFloat exponent_len significand_len
@@ -207,7 +215,7 @@ def nextUp (n : IEEEFloat w t) : IEEEFloat w t :=
 end IEEEFloat
 open IEEEFloat
 
--- def binary16 : Type := IEEEFloat ⟨5, by decide⟩ 10
--- def binary32 : Type := IEEEFloat 8 23
--- def binary64 : Type := IEEEFloat 11 52
--- def binary128 : Type := IEEEFloat 15 112
+def binary16 : Type := IEEEFloat ⟨5, by decide⟩ ⟨10, by decide⟩
+def binary32 : Type := IEEEFloat ⟨8, by decide⟩ ⟨23, by decide⟩
+def binary64 : Type := IEEEFloat ⟨11, by decide⟩ ⟨52, by decide⟩
+def binary128 : Type := IEEEFloat ⟨15, by decide⟩ ⟨112, by decide⟩
