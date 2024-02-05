@@ -61,7 +61,7 @@ let metricsFilters = Object.fromEntries(hiddenMetrics.map((metric_name) => [metr
 let likeNotificationIcon = "M20.884 13.19c-1.351 2.48-4.001 5.12-8.379 7.67l-.503.3-.504-.3c-4.379-2.55-7.029-5.19-8.382-7.67-1.36-2.5-1.41-4.86-.514-6.67.887-1.79 2.647-2.91 4.601-3.01 1.651-.09 3.368.56 4.798 2.01 1.429-1.45 3.146-2.1 4.796-2.01 1.954.1 3.714 1.22 4.601 3.01.896 1.81.846 4.17-.514 6.67z"
 
 let likeNotificationFilter = (element) => (
-  (element.tagName === "path" && element.getAttribute("d") === likeNotificationIcon)
+  (element.tagName === "path" && element.getAttribute("d") === likeNotificationIcon && document.location.pathname === "/notifications")
   ? nthParent(element, 8)
   : null
 )
@@ -69,10 +69,10 @@ let likeNotificationFilter = (element) => (
 let filters = {
   "For you": forYouFilter,
   "Subscribe to Premium": subscribeSidebarFilter,
-  "Who to follow": whoToFollowFilter,
+  "Who to Follow": whoToFollowFilter,
   "Trends": trendsFilter,
   "Home": homeHeaderFilter,
-  "Legal": legalBullshitFilter,
+  "Legal Bullshit": legalBullshitFilter,
   "Like Notification": likeNotificationFilter,
 
   "Sidebar": sidebarItemFilters,

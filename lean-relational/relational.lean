@@ -1,16 +1,35 @@
 import Std.Data.RBMap
 import Mathlib.Data.List.Basic
+import Mathlib.Tactic.Ring
+import Mathlib.Tactic.Linarith
 
-def List.body : ∀ (xs : List α), xs ≠ [] → List α
+def List.body : (xs : List α) → xs ≠ [] → List α
 | [], h => absurd rfl h
 | [_], _ => []
 | (x :: b :: xs), _ =>
         List.cons x (List.body (b::xs) (λ h => List.noConfusion h))
 
+theorem Nat.succ_lt_succ_if {n m : Nat} : Nat.succ n < Nat.succ m → n < m := by
+  exact Nat.succ_lt_succ_iff.mp
+
+def List.extractIdx : (xs : List α) → (idx : Fin (xs.length)) → α × List α
+| (x :: xs), ⟨0, _⟩ => (x, xs)
+| (x :: xs), ⟨n+1, h⟩ => let ⟨y, ys⟩ := extractIdx xs ⟨n, Nat.succ_lt_succ_if h⟩;
+                         (y, x :: ys)
+
+lemma List.extractIdx_eq_get : (xs : List α) → (idx : Fin (xs.length)) → Prod.fst (xs.extractIdx idx) = xs.get idx := by
+  intro xs idx
+  induction xs with
+  | nil => cases idx.2
+  | cons x xs ih =>
+    cases idx.val with
+    | zero => sorry
+    | succ n => sorry --simp [List.extractIdx, ih ⟨n, extractIdx_lengths_correct h⟩]
+
 def Std.RBMap.change! [Inhabited β] (rb_map : Std.RBMap α β comp) (key : α) (f : β → β) : Std.RBMap α β comp :=
-let old_val := rb_map.find! key;
-let new_val := f old_val;
-rb_map.insert key new_val
+  let old_val := rb_map.find! key;
+  let new_val := f old_val;
+  rb_map.insert key new_val
 
 def VarID := Nat
   deriving BEq, Ord, Inhabited, Repr
@@ -37,7 +56,7 @@ instance : OfNat VarID n where
   ofNat := n
 
 instance : Ord Var where
-  compare : (Var) → (Var) → Ordering
+  compare : Var → Var → Ordering
   | (id₁, gen₁), (id₂, gen₂) =>
     match compare id₁ id₂ with
      | Ordering.eq => compare gen₁ gen₂
@@ -71,6 +90,8 @@ inductive TermValue where
 def Bindings := Std.RBMap Var TermValue Ord.compare
   deriving Repr
 namespace Bindings
+
+def empty : Bindings := Std.RBMap.empty
 
 def get : Bindings → Var → Option TermValue
 | bindings => bindings.find?
@@ -125,6 +146,10 @@ def to_term_value (head : Head) : ClauseTerm → TermValue
 end Head
 
 def LogicGraph := Std.RBMap ClauseID Clause Ord.compare
+
+instance : Membership ClauseID LogicGraph where
+  mem id graph := graph.contains id
+
 namespace LogicGraph
 
 structure Substitution where
@@ -132,6 +157,7 @@ structure Substitution where
   heads : List Head
 
   heads_nonempty : heads ≠ []
+  deriving Repr
 
 open Clause
 
@@ -139,23 +165,37 @@ def eval (graph : LogicGraph)
          (bindings : Bindings)
          (head : Head)
          (other_heads : List Head)
-    : (List (Bindings × List Head) × Option Bindings) :=
+    : (List Substitution × Option Bindings) :=
 let clause := graph.find! head.clause; -- TODO: use find with proofs instead
 match clause with
-| Conjunction subclauses => ([(bindings, other_heads.append (List.map (λ subclause => { head with clause := subclause}) subclauses))], none)
-| Disjunction subclauses => (List.map (λ subclause => (bindings, other_heads.concat { head with clause := subclause})) subclauses, none)
-| Introduction var_id subclause => ([(bindings, other_heads.concat {(head.incr_counter var_id) with clause := subclause})], none)
+| Conjunction subclauses => ([{
+                         bindings := bindings,
+                         heads := other_heads.append (List.map (λ subclause => { head with clause := subclause}) subclauses),
+                         heads_nonempty := sorry
+                         }], none)
+| Disjunction subclauses => (List.map (λ subclause => {
+                          bindings := bindings,
+                          heads := other_heads.concat { head with clause := subclause},
+                          heads_nonempty := sorry})
+                          subclauses, none)
+| Introduction var_id subclause => ([{
+                          bindings := bindings,
+                          heads := other_heads.concat {(head.incr_counter var_id) with clause := subclause}
+                          heads_nonempty := sorry }
+                          ], none)
 | Unification term1 term2 => match Bindings.unify bindings
                                                   (bindings.follow (head.to_term_value term1))
                                                   (bindings.follow (head.to_term_value term2)) with
   | some new_bindings => if other_heads.length == 0 then
                          ([], some new_bindings)
-                         else ([(new_bindings, other_heads)], none)
+                         else ([{bindings := new_bindings, heads := other_heads, heads_nonempty := sorry}], none)
   | none => ([], none)
 
-def Select := LogicGraph → (substs : List Substitution) → substs ≠ [] → Σ selected_subst : Fin substs.length, Fin (substs.get selected_subst).heads.length
+def Select := LogicGraph → (substs : List Substitution) → substs ≠ []
+              → Σ selected_subst : Fin substs.length,
+                  Fin (substs.get selected_subst).heads.length
 
-theorem length_pos_of_nonempty {α : Type _} (list : List α) (h : list ≠ []) : 0 < list.length := by
+lemma length_pos_of_nonempty {α : Type _} (list : List α) (h : list ≠ []) : 0 < list.length := by
   cases list with
   | nil  => contradiction
   | cons => exact Nat.zero_lt_succ _
@@ -166,7 +206,7 @@ def select_depth_first : Select :=
                                  ⟨0, let first_subst := substs.get ⟨0, len_substs_gt_z⟩
                                      length_pos_of_nonempty first_subst.heads first_subst.heads_nonempty⟩⟩
 
-theorem last_index_less_than_length {α : Type _} (list : List α) (h : list ≠ []) :
+lemma last_index_less_than_length {α : Type _} (list : List α) (h : list ≠ []) :
             List.length list - 1 < List.length list := by
   cases list with
   | nil => contradiction
@@ -185,29 +225,41 @@ def select_breadth_first : Select :=
                                  ⟨last_head_idx, last_head_index_lt_length⟩⟩
 
 partial def eval_to_next (graph : LogicGraph)
-                         (substs : List (Bindings × List Head))
+                         (substs : List Substitution)
                          (substs_nonempty : substs ≠ [])
                          (selectF : Select)
-    : Option (Bindings × List (Bindings × List Head)) :=
-let (bindings, heads) := selectF graph substs substs_nonempty;
-let (new_substitutions, results_option) := eval graph bindings heads;
-if let some(results) := results_option; then
-  some ()
-else
-  EvalResult.More new_substitutions bindings
+    : Option (Bindings × List Substitution) :=
+let ⟨sel_subst_idx, sel_head_idx⟩ := selectF graph substs substs_nonempty
+let (sel_subst, remaining_substs) := substs.extractIdx sel_subst_idx
+let sel_head_idx' : Fin (List.length sel_subst.heads) := ⟨sel_head_idx.val, sorry⟩; -- TODO: prove this
+let (sel_head, remaining_heads) := sel_subst.heads.extractIdx sel_head_idx';
+let (new_substitutions, results_option) := eval graph sel_subst.bindings sel_head remaining_heads;
+if let some results := results_option then
+  some (results, new_substitutions ++ remaining_substs)
+else if remaining_substs.length == 0 then
+  none
+else eval_to_next graph (new_substitutions ++ remaining_substs) sorry selectF
 
-partial def eval_all (graph : LogicGraph)
+partial def eval_all(graph : LogicGraph)
+                         (substs : List Substitution)
+                         (substs_nonempty : substs ≠ [])
+                         (selectF : Select)
+    : List Bindings :=
+    if let some (result, next_substs) := eval_to_next graph substs sorry selectF then
+      result :: eval_all graph next_substs sorry selectF
+    else
+      List.nil
+
+def eval_from_entry (graph : LogicGraph)
                      (selectF : Select)
                      (entry_point : ClauseID)
-                     (entry_point_is_in_graph : entry_point ∈ graph)
-                     : EvalResult :=
+                     -- (entry_point_is_in_graph : entry_point ∈ graph)
+                     : List Bindings :=
  let entry_head : Head := { counters := Std.RBMap.empty, clause := entry_point };
- let entry_substs : List (Bindings × List Head) := [(Std.RBMap.empty, [])];
-
+ let entry_substs : List Substitution := [{bindings := Bindings.empty, heads := [entry_head], heads_nonempty := by simp}];
+ eval_all graph entry_substs sorry selectF
 
 end LogicGraph
-
-
 
 def Std.RBMap.fromList [BEq α] [Ord α] (l : List (α × β)) : Std.RBMap α β Ord.compare :=
   l.foldl (λ map (key, value) => map.insert key value) Std.RBMap.empty
@@ -227,4 +279,4 @@ def test_bindings : Bindings := Std.RBMap.empty
 
 def test_head : Head := { counters := Std.RBMap.empty, clause := 0 }
 
-#eval LogicGraph.eval test_logic_graph_unif_under_intro test_bindings test_head []
+#eval LogicGraph.eval_from_entry test_logic_graph_unif LogicGraph.select_depth_first 0
