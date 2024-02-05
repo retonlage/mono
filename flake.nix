@@ -23,6 +23,14 @@
           packages.autodiff = pkgs.haskellPackages.developPackage {
             root = ./autodiff;
           };
+          packages.download-anna = pkgs.stdenv.mkDerivation {
+            name = "download-anna";
+            src = ./annas-archive-downloader;
+            installPhase = ''
+              mkdir -p $out/bin
+              cp -r . $out/bin
+            '';
+          };
           devShells.default = pkgs.mkShell {
             buildInputs = with pkgs; [
               # rust
@@ -38,6 +46,10 @@
               ])
               (lean4.defaultPackage.${system})
               z3
+
+              racket
+
+              (python3.withPackages(pp: with pp; [requests beautifulsoup4]))
             ];
           };
         }
