@@ -7,7 +7,7 @@
     dream2nix.inputs.nixpkgs.follows = "nixpkgs";
     fenix.url = "github:nix-community/fenix/monthly";
     utils.url = "github:numtide/flake-utils";
-    lean4.url = "github:leanprover/lean4/v4.0.0-rc4";
+    lean4.url = "github:leanprover/lean4/v4.2.0-rc1";
   };
 
   outputs = {nixpkgs, dream2nix, fenix, utils, lean4, ...}:
@@ -38,7 +38,7 @@
               (agda.withPackages [
                 pkgs.agdaPackages.standard-library
               ])
-              (lean4.defaultPackage.${system})
+              # (lean4.defaultPackage.${system})
               z3
 
               racket
