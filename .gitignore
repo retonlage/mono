@@ -3,3 +3,9 @@ result
 /accel-lean/build/
 /lean-relational/lean-toolchain
 /lean-relational/lakefile.olean
+
+# rust build files
+/ein/target/
+/relational-rs/target/
+/sim/target
+/time/target
