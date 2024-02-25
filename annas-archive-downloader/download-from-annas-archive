@@ -1,0 +1,11 @@
+#! /bin/sh
+
+search_results=$(rofi -dmenu | xargs ./search.py | jq -r '[.[] | (.name + " ^ " + .download_url)] | join("|")')
+
+# these can't be a single pipe because we can't run multiple instances of rofi simultaneously
+
+echo $search_results |
+    rofi -dmenu -sep "|" |
+    sed -r 's/.*\^ //' |
+    xargs ./download.py |
+    xargs xdg-open

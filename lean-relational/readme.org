@@ -1,0 +1,14 @@
+#+title: Relational
+A logic programming language embedded in Lean, with ML stuff.
+Basically Prolog except a heuristic decides which part of every clause is evaluated first.
+* todo [0/5]
+** TODO accel-lean
+in a different [[file:~/mono/accel-lean/][part of the repo]]
+prove some lean code equivalent to some assembly-like code for critical performance stuff.
+** TODO ml foundation
+*** TODO lean-autodiff
+in a different [[file:~/mono/lean-autodiff/][part of the repo]]
+relies on [[*accel-lean][accel-lean]]
+*** TODO gnn implementation
+** TODO relational
+** TODO z3 interface

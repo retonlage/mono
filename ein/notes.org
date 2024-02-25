@@ -1,0 +1,28 @@
+#+title: Notes
+* what even is an ein-expr
+** description of the basic algorithm
+i am dum
+
+to get the index from the source given the index in the result:
+look up the corresponding dimension in the source map for each dimension in the result index
+take that dimension index from the result index
+** multiple results without concatenation
+wat to do about the multiple inputs without concatenations situations.
+like what does this mean: =a b, c d -> b d=
+
+here's some matrices
+
+1 2  5 6
+3 4, 7 8 ->
+
+going by the lengths of b and d the result must be 2x2. this is clearly nonsensical.
+
+yet this isn't nonsensical: =a, b -> b, a=
+a rule that a resulting tensor can't draw from multiple input tensors without concatenation?????
+would probably work. maybe that means we should just autoconcatenate when multiple axis can't mean anything else.
+a clearer statement of the rule: "each scalar in the output must come from a single input tensor"
+that makes sense. now to do it.
+*** TODO implement this
+** allow copying
+the following should be allowed: =a -> a, a= this copies the tensor
+also allow copying for concatenations. so =a -> a + a= copies to a single vector of len 2a, like i expect.
