@@ -42,6 +42,9 @@
               z3
 
               racket
+              (python310.withPackages (ps: with ps;[
+                amaranth
+              ]))
             ];
           };
         }
