@@ -1,5 +1,7 @@
 #+title: Readme
 * Personal monorepo
+Instead of having a million abandoned projects on my github they all go in here.
+If I every finish any i will move them out to seperate repos.
 * Contents
 ** TODO =time/= an implementation of POSIX =time= with support for french revolutionary time
 ** TODO =sim/= worldgen experiments
